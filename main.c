@@ -7,10 +7,14 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 
+#include <linux/can.h>
+#include <linux/can/raw.h>
+
 #include "lib.h"
-#include "include/linux/can.h"
+
 
 #define NO_OF_MENU_OPTIONS (5+1)
+#define CAN_NETWORK_NAME "slcan0" //define it to be a specific name for testing
 
 struct _main_menu_options{
 	int option_id;
@@ -25,24 +29,41 @@ void user_change_rpm(void){
 	printf("\n\n\nTODO: Implement how to change rpm\n\n\n");
 }
 void user_change_speed(void){
+
+	struct canfd_frame speed_frame; /*TODO: Is there a need to malloc space for this?*/
+	int enable_canfd = 1;
+	int mtu;
+	int required_mtu = CAN_MTU; /**/
+	struct sockaddr_can addr;
+	struct ifreq ifr;
+	int s; /* can raw socket */
+	int user_defined_speed;
+
 	printf("\n\n\nTODO: Implement how to change the speed\n\n\n");	
-	/*TODO: can_frame or canfd_frame??*/
-	struct can_frame *speed_frame; /*TODO: Is there a need to malloc space for this?*/
-	memset(speed_frame, 0, sizeof(*speed_frame));
-	speed_frame->can_id = 0x158;
-	speed_frame->can_dlc = CAN_MAX_DLEN;
+
+	printf("Please specify the speed you want to display: ");
+	if(scanf("%d", &user_defined_speed) <= 0){
+		printf("Illegal input.\n");
+		return;
+	}	
+	if(user_defined_speed < 0 || user_defined_speed > 300){
+		/*Invalid option*/
+		printf("Invalid speed.\n");
+		return;
+	}
 
 	/*set up the can data frame*/
 	/*set timer interrupt to send packet every 10ms*/
 	/*increament the speed on the can data frame until the specified speed*/
-	/* TODO: Make sense of the initialisation from cansend
-	 *
+	/* TODO: Make sense of the initialisation from cansend */
+
 	if ((s = socket(PF_CAN, SOCK_RAW, CAN_RAW)) < 0) {
 		perror("socket");
 		fprintf(stderr, "Error with socket.\n");
 		return;
 	}
-	strncpy(ifr.ifr_name, argv[1], IFNAMSIZ - 1);
+
+	strncpy(ifr.ifr_name, CAN_NETWORK_NAME, IFNAMSIZ - 1);
 	ifr.ifr_name[IFNAMSIZ - 1] = '\0';
 	ifr.ifr_ifindex = if_nametoindex(ifr.ifr_name);
 	if (!ifr.ifr_ifindex) {
@@ -57,14 +78,43 @@ void user_change_speed(void){
 
 	if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		perror("bind");
-		return 1;
+		return;
+	}
+	
+	memset(&speed_frame, 0, sizeof(speed_frame));
+	speed_frame.can_id = 0x158;
+	speed_frame.len = CAN_MAX_DLEN;
+
+	int heartbeat_bytes[4];
+	int heartbeat_index = 0;
+	/*TODO: for loop to increment/decrement the speed*/
+	for(int i = 0; i < 0xFFFF/*TODO: To replace with whatever bytes correspond to the speed*/; i++){
+		if(heartbeat_index==0){
+			int first_hb_byte = rand() % 10 + 20;
+			int sec_hb_byte = rand() % 10 + 30;
+			int third_hb_byte = rand() % 10 + 0;
+			int fourth_hb_byte = rand() % 10 + 10;
+			heartbeat_bytes[0] = first_hb_byte;
+			heartbeat_bytes[1] = sec_hb_byte;
+			heartbeat_bytes[2] = third_hb_byte;
+			heartbeat_bytes[3] = fourth_hb_byte;
+		}
+		speed_frame.data[0] = (i & 0xFF00) >> 8;
+		speed_frame.data[1] = i & 0xFF;
+		speed_frame.data[4] = (i & 0xFF00) >> 8;
+		speed_frame.data[5] = i & 0xFF;
+		speed_frame.data[7] = heartbeat_bytes[heartbeat_index];
+		if (write(s, &speed_frame, required_mtu) != required_mtu) {
+			perror("write");
+		}
+		sleep(0.10);
+		heartbeat_index++;
+		heartbeat_index %= 4;
 	}
 
-	if (write(s, &frame, required_mtu) != required_mtu) {
-		perror("write");
-		return 1;
-	}
-	*/
+	/*TODO: Find a way to keep it at the specified speed until user quits*/
+
+
 }
 
 void user_change_gear(void){
