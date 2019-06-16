@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include <net/if.h>
 #include <sys/ioctl.h>
@@ -15,6 +16,17 @@
 
 #define NO_OF_MENU_OPTIONS (6+1)
 #define CAN_NETWORK_NAME "slcan0" //define it to be a specific name for testing
+
+void exit_program(int sig){
+	exit(2);
+}
+
+int should_stop_sending_can_msges = 0;
+
+void stop_sending_can_msges(int sig){
+	should_stop_sending_can_msges = 1; /*flag for the program to quit infinite loop*/
+	signal(SIGINT, exit_program);
+}
 
 enum Warning_lights{
 	AIRBAGS_WARN = 0x0,
@@ -106,7 +118,9 @@ void user_change_warn_lights(Can_socket s){
 	int heartbeat_index = 0;
 
 	/*TODO: Prepare the heartbeat*/
-	for(int i = 0; i < 20000; i++){
+	signal(SIGINT, stop_sending_can_msges);
+	printf("Press Ctrl+C to stop spoofing and return to main menu.\n");
+	while(1){
 		warning_light_frame.data[pntr_to_selected_warn_light->can_msg_len-1] = pntr_to_selected_warn_light->heartbeat_bytes[heartbeat_index];
 		if (write(s, &warning_light_frame, required_mtu) != required_mtu) {
 			perror("write");
@@ -114,6 +128,8 @@ void user_change_warn_lights(Can_socket s){
 		usleep(pntr_to_selected_warn_light->send_intervals_ms * 1000);
 		heartbeat_index++;
 		heartbeat_index %= 4;
+		if(should_stop_sending_can_msges)
+			break;
 	}
 }
 
@@ -127,24 +143,8 @@ void user_change_speed(Can_socket s){
 	int enable_canfd = 1;
 	int mtu;
 	int required_mtu = CAN_MTU; /**/
-	int max_can_byte;
 
-	int user_defined_speed;
-
-	printf("\n\n\nTODO: Implement how to change the speed\n\n\n");	
-
-	printf("Please specify the speed you want to display: ");
-	if(scanf("%d", &user_defined_speed) <= 0){
-		printf("Illegal input.\n");
-		return;
-	}	
-	if(user_defined_speed < 0 || user_defined_speed > 300){
-		/*Invalid option*/
-		printf("Invalid speed.\n");
-		return;
-	}
-
-	max_can_byte = (int) (user_defined_speed * 80000 / 621); /*TODO: Fix the formula*/
+	printf("\n\n\nI will now increment speed to 300km/h and decrease it back to 0km/h\n\n\n");	
 
 	/*set up the can data frame*/
 	/*set timer interrupt to send packet every 10ms*/
@@ -160,36 +160,63 @@ void user_change_speed(Can_socket s){
 	int heartbeat_index = 0;
 
 	/*TODO: for loop to increment/decrement the speed*/
-	for(int i = 0; i < max_can_byte/*TODO: To replace with whatever bytes correspond to the speed*/; i++){
-		if(heartbeat_index==0){
-			int first_hb_byte = (rand() % 10) + 0x20;
-			int sec_hb_byte = (rand() % 10) + 0x30;
-			int third_hb_byte = (rand() % 10) + 0x0;
-			int fourth_hb_byte = (rand() % 10) + 0x10;
-			heartbeat_bytes[0] = first_hb_byte;
-			heartbeat_bytes[1] = sec_hb_byte;
-			heartbeat_bytes[2] = third_hb_byte;
-			heartbeat_bytes[3] = fourth_hb_byte;
+        signal(SIGINT, stop_sending_can_msges);
+        printf("Press Ctrl+C to stop spoofing and return to main menu.\n");
+        while(1){
+		/*Increment speed from 0km/h to 300km/h*/
+		for(int i = 0x0070; i < 0x7500; i+=8){
+			if(should_stop_sending_can_msges)
+				break;
+			if(heartbeat_index==0){
+				int first_hb_byte = (rand() % 10) + 0x20;
+				int sec_hb_byte = (rand() % 10) + 0x30;
+				int third_hb_byte = (rand() % 10) + 0x0;
+				int fourth_hb_byte = (rand() % 10) + 0x10;
+				heartbeat_bytes[0] = first_hb_byte;
+				heartbeat_bytes[1] = sec_hb_byte;
+				heartbeat_bytes[2] = third_hb_byte;
+				heartbeat_bytes[3] = fourth_hb_byte;
+			}
+			speed_frame.data[0] = (i & 0xFF00) >> 8;
+			speed_frame.data[1] = i & 0xFF;
+			speed_frame.data[4] = (i & 0xFF00) >> 8;
+			speed_frame.data[5] = i & 0xFF;
+			speed_frame.data[7] = heartbeat_bytes[heartbeat_index];
+			if (write(s, &speed_frame, required_mtu) != required_mtu) {
+				perror("write");
+			}
+			usleep(10 * 1000);
+			heartbeat_index++;
+			heartbeat_index %= 4;
 		}
-		speed_frame.data[0] = (i & 0xFF00) >> 8;
-		speed_frame.data[1] = i & 0xFF;
-		speed_frame.data[4] = (i & 0xFF00) >> 8;
-		speed_frame.data[5] = i & 0xFF;
-		speed_frame.data[7] = heartbeat_bytes[heartbeat_index];
-		if (write(s, &speed_frame, required_mtu) != required_mtu) {
-			perror("write");
-		}
-		usleep(10 * 1000);
-		heartbeat_index++;
-		heartbeat_index %= 4;
+		/*Decrement speed from 300km/h to 0km/h*/
+		for(int i = 0x7100; i >= 0x00F0; i-=8){
+			if(should_stop_sending_can_msges)
+				break;
+                        if(heartbeat_index==0){
+                                int first_hb_byte = (rand() % 10) + 0x20;
+                                int sec_hb_byte = (rand() % 10) + 0x30;
+                                int third_hb_byte = (rand() % 10) + 0x0;
+                                int fourth_hb_byte = (rand() % 10) + 0x10;
+                                heartbeat_bytes[0] = first_hb_byte;
+                                heartbeat_bytes[1] = sec_hb_byte;
+                                heartbeat_bytes[2] = third_hb_byte;
+                                heartbeat_bytes[3] = fourth_hb_byte;
+                        }
+                        speed_frame.data[0] = (i & 0xFF00) >> 8;
+                        speed_frame.data[1] = i & 0xFF;
+                        speed_frame.data[4] = (i & 0xFF00) >> 8;
+                        speed_frame.data[5] = i & 0xFF;
+                        speed_frame.data[7] = heartbeat_bytes[heartbeat_index];
+                        if (write(s, &speed_frame, required_mtu) != required_mtu) {
+                                perror("write");
+                        }
+                        usleep(10 * 1000);
+                        heartbeat_index++;
+                        heartbeat_index %= 4;
+                }
 	}
 
-	for(int i = 0; i < 500; i++){
-		if (write(s, &speed_frame, required_mtu) != required_mtu) {
-			perror("write");
-		}
-		usleep(10 * 1000);
-	}
 
 	/*TODO: Find a way to keep it at the specified speed until user quits*/
 
@@ -216,7 +243,11 @@ void user_change_gear(Can_socket s){
 	gear_frame.data[3] = 0x01; /*TODO: P gear for testing*/
 	gear_frame.data[0] = 0x07; /*TODO: D gear for testing*/
 	gear_frame.data[2] = 0x80;
-	for(int i = 0; i < 20000/*TODO: 20 sec for testing */; i++){
+        signal(SIGINT, stop_sending_can_msges);
+	printf("Press Ctrl+C to stop spoofing and return to main menu.\n");
+	while(1){
+		if(should_stop_sending_can_msges)
+			break;
 		/*
 		if(heartbeat_index==0){
 			int first_hb_byte = (rand() % 10) + 0x00;
@@ -275,9 +306,13 @@ void increment_odometer(Can_socket s){
 	int heartbeat_index = 0;
 
 
-	for(int repeat = 0; repeat < 10; repeat++){
+        signal(SIGINT, stop_sending_can_msges);
+        printf("Press Ctrl+C to stop spoofing and return to main menu.\n");
+        while(1){
 		for(int i = 0; i <= 0xFF /*TODO: To replace with whatever bytes correspond to the speed*/; i++){
 			for(int j = 0; j < 20; j++){
+				if(should_stop_sending_can_msges)
+					break;
 				if(heartbeat_index==0){
 					int first_hb_byte = (rand() % 10) + 0x20;
 					int sec_hb_byte = (rand() % 10) + 0x30;
