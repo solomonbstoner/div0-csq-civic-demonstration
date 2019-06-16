@@ -3,7 +3,7 @@
 # 1. http://www.cs.colby.edu/maxwell/courses/tutorials/maketutor/
 # 2. https://github.com/google/honggfuzz/blob/master/Makefile
 
-CC=arm-linux-gnueabi-gcc
+CC=gcc
 CFLAGS=-I.
 DEPS = lib.h
 OBJ = main.o lib.o
