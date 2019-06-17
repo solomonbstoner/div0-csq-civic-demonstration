@@ -349,7 +349,7 @@ struct _gear_options gear_options_array [11] = {
 };
 
 void user_change_gear(Can_socket s){
-	printf("\n\n\nWhich gear am I driving in?\n\n\n");
+	printf("\n\n\nAm I parked, driving or in reverse?\n\n\n");
 
 	struct canfd_frame gear_frame; 
 	int enable_canfd = 1;
