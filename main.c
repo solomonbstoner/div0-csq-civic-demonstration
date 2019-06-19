@@ -464,6 +464,57 @@ return_to_main_menu:
 	return;
 }
 
+/*FOR TESTING*/
+void decrement_odometer(Can_socket s){
+	struct canfd_frame odometer_frame;
+	int enable_canfd = 1;
+	int mtu;
+	int required_mtu = CAN_MTU; /**/
+
+	printf("\n\n\nTESTING: Watch the odometer decrement.\n\n\n");	
+	
+	memset(&odometer_frame, 0, sizeof(odometer_frame));
+	odometer_frame.can_id = 0x158;
+	odometer_frame.len = CAN_MAX_DLEN;
+
+	int heartbeat_bytes[4];
+	int heartbeat_index = 0;
+
+
+	signal(SIGINT, stop_sending_can_msges);
+	printf("Press Ctrl+C to stop spoofing and return to main menu.\n");
+	while(1){
+		for(int i = 0x00; i >= 0x01; i--){
+			for(int j = 0; j < 20; j++){
+				if(should_stop_sending_can_msges){
+					should_stop_sending_can_msges = 0;
+					goto return_to_main_menu;
+				}
+				if(heartbeat_index==0){
+					int first_hb_byte = (rand() % 10) + 0x20;
+					int sec_hb_byte = (rand() % 10) + 0x30;
+					int third_hb_byte = (rand() % 10) + 0x0;
+					int fourth_hb_byte = (rand() % 10) + 0x10;
+					heartbeat_bytes[0] = first_hb_byte;
+					heartbeat_bytes[1] = sec_hb_byte;
+					heartbeat_bytes[2] = third_hb_byte;
+					heartbeat_bytes[3] = fourth_hb_byte;
+				}
+				odometer_frame.data[6] = i & 0xFF; //we only want the least significant byte
+				odometer_frame.data[7] = heartbeat_bytes[heartbeat_index];
+				if (write(s, &odometer_frame, required_mtu) != required_mtu) {
+					perror("write");
+				}
+				usleep(10 * 1000);
+				heartbeat_index++;
+				heartbeat_index %= 4;
+			}
+		}
+	}
+return_to_main_menu:
+	return;
+}
+
 struct _main_menu_options main_menu_options_array[NO_OF_MENU_OPTIONS] = {
 	{0x0, user_change_warn_lights, "[0] Turn on/off warning lights\n"},
 	{0x1, user_change_rpm, "[1] Demo RPM change\n"},
