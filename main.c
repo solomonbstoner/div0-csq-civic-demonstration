@@ -14,7 +14,7 @@
 #include "lib.h"
 
 
-#define NO_OF_MENU_OPTIONS (6+1)
+#define NO_OF_MENU_OPTIONS (7+1)
 #define CAN_NETWORK_NAME "slcan0" //define it to be a specific name for testing
 
 void exit_program(int sig){
@@ -522,7 +522,8 @@ struct _main_menu_options main_menu_options_array[NO_OF_MENU_OPTIONS] = {
 	{0x3, user_change_gear, "[3] Demo gear change\n"},
 	{0x4, increment_odometer, "[4] Increment the odometer\n"},
 	{0x5, quit_program, "[5] Exit\n"},
-	{0x6, NULL, NULL}
+	{0x6, decrement_odometer, "[6] TESTING: Decrement the odometer\n"},
+	{0x7, NULL, NULL}
 };
 
 static int print_main_menu(void){
